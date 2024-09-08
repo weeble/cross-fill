@@ -1,0 +1,190 @@
+#!/usr/bin/env python3
+
+import os
+import re
+import sys
+from random import sample
+
+SAFE_RE = re.compile('^[a-z]+$')
+THIS_DIRECTORY_PATH = os.path.realpath(
+    os.path.join(os.getcwd(), os.path.dirname(__file__)))
+WORD_LIST_PATH = os.path.join(THIS_DIRECTORY_PATH, 'simple-words.txt')
+
+def load_wordlists():
+    with open(WORD_LIST_PATH) as f:
+        all_words = [line.strip() for line in f]
+    safe_words = [word for word in all_words if SAFE_RE.match(word)]
+    wordlists=[]
+    for i in range(12):
+        wordlists.append([word for word in safe_words if len(word) == i])
+    return wordlists
+
+ACROSS = (1, 0)
+DOWN = (0, 1)
+
+def read_letters(grid, position, direction, count):
+    x, y = position
+    dx, dy = direction
+    letters = [grid.get((x+i*dx,y+i*dy), '?') for i in range(count)]
+    return ''.join(letters)
+
+def compatible(word, grid_letters):
+    return len(word)==len(grid_letters) and all(g==w or g=='?' for (w,g) in zip(word, grid_letters))
+
+def put_letters(grid, position, direction, word):
+    new_grid = dict(grid)
+    x, y = position
+    dx, dy = direction
+    for i, ch in enumerate(word):
+        new_grid[x+i*dx, y+i*dy] = ch
+    return new_grid
+
+def read_grid(text):
+    lines = text.strip().splitlines()
+    w = len(lines[0])
+    h = len(lines)
+    grid = {}
+    for y in range(h):
+        for x in range(w):
+            grid[x,y] = lines[y][x]
+    grid['w'] = w
+    grid['h'] = h
+    return grid
+
+def render_grid(grid):
+    w = grid['w']
+    h = grid['h']
+    for y in range(h):
+        print(''.join(grid.get((x,y), '.') for x in range(w)))
+
+def read_scheme(grid):
+    w = grid['w']
+    h = grid['h']
+    scheme = []
+    for y in range(h):
+        acc=[]
+        for x in range(w):
+            ch = grid.get((x,y), '.')
+            if ch != '.':
+                acc.append(ch)
+                continue
+            if len(acc)>1:
+                scheme.append(((x-len(acc), y), ACROSS, ''.join(acc)))
+            acc=[]
+        if len(acc)>1:
+            scheme.append(((w-len(acc), y), ACROSS, ''.join(acc)))
+
+    for x in range(w):
+        acc=[]
+        for y in range(h):
+            ch = grid.get((x,y), '.')
+            if ch != '.':
+                acc.append(ch)
+            else:
+                if len(acc)>1:
+                    scheme.append(((x, y-len(acc)), DOWN, ''.join(acc)))
+                acc=[]
+        if len(acc)>1:
+            scheme.append(((x, h-len(acc)), DOWN, ''.join(acc)))
+    return scheme
+
+def check_possible(grid, scheme, wordlists):
+    for position, direction, characters in scheme:
+        count = len(characters)
+        rest_of_scheme = scheme[1:]
+        wordlist = wordlists[count]
+        wordlist = sample(wordlist, k=len(wordlist))
+        letters = read_letters(grid, position, direction, count)
+        goodwords = [word for word in wordlist if compatible(word, letters)]
+        if len(goodwords)==0:
+            return False
+    return True
+
+def fill(grid, scheme, wordlists):
+    if len(scheme) == 0:
+        return True, grid
+    if not check_possible(grid, scheme, wordlists):
+        return False, grid
+    position, direction, characters = scheme[0]
+    count = len(characters)
+    rest_of_scheme = scheme[1:]
+    wordlist = wordlists[count]
+    wordlist = sample(wordlist, k=len(wordlist))
+    letters = read_letters(grid, position, direction, count)
+    goodwords = [word for word in wordlist if compatible(word, letters)]
+    if len(goodwords) == 0:
+        return False, grid
+    for word in goodwords:
+        new_grid = put_letters(grid, position, direction, word)
+        success, finished_grid = fill(new_grid, rest_of_scheme, wordlists)
+        if success:
+            return True, finished_grid
+    return False, grid
+
+def get_anagrams(word, wordlists):
+    letters = sorted(word)
+    return [w for w in wordlists[len(word)] if sorted(w) == letters and word != w]
+
+def show_scheme(scheme, wordlists):
+    def pos_sort_key(position):
+        x, y = position
+        return y, x
+    def entry_sort_key(entry):
+        position, direction, word = entry
+        return direction[1], pos_sort_key(position)
+    numbers = {pos: i+1 for (i,pos) in enumerate(sorted(set(item[0] for item in scheme), key=pos_sort_key))}
+    scheme = sorted(scheme, key=entry_sort_key)
+
+    for pos, direction, word in scheme:
+        dirname = {ACROSS:'ACROSS', DOWN:'DOWN'}[direction]
+        print(f"{numbers[pos]} {dirname}: {word} ({'/'.join(get_anagrams(word, wordlists))})")
+
+
+text='''
+?????
+?...?
+?...?
+?...?
+?????
+'''
+
+text='''
+.?.????
+????..?
+.?.????
+.?.?.?.
+????.?.
+?..????
+????.?.
+'''
+
+grid = read_grid(sys.stdin.read())
+scheme = read_scheme(grid)
+
+# scheme = [
+#     ((3, 0), (0, 1), '???????'),
+#     ((3, 2), (1, 0), '????'),
+#     ((3, 0), (1, 0), '????'),
+#     ((6, 0), (0, 1), '???'),
+#     ((5, 2), (0, 1), '?????'),
+#     ((3, 5), (1, 0), '????'),
+#     ((0, 4), (1, 0), '????'),
+#     ((0, 4), (0, 1), '???'),
+#     ((0, 6), (1, 0), '????'),
+#     ((0, 1), (1, 0), '????'),
+#     ((1, 0), (0, 1), '?????'),
+# ]
+
+wordlists = load_wordlists()
+
+success, grid = fill(grid, scheme, wordlists)
+render_grid(grid)
+print()
+complete_scheme = read_scheme(grid)
+show_scheme(complete_scheme, wordlists)
+
+
+
+
+
+

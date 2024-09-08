@@ -1,0 +1,37 @@
+Tries to fill a cross-word with only simple words.
+
+Make a cross-word shape like this:
+
+????
+???.
+.???
+????
+
+Use . for black boxes, ? for letters cross-fill will fill in,
+and a lower-case letter for ready-filled letters.
+
+It might not finish if it's too hard! Try not to put words close
+around each other on all sides.
+
+Use like this:
+
+./cross-fill < my-cross-word-shape
+
+Puts out an answer like this.
+
+some
+one.
+.tea
+lots
+
+1 ACROSS: some ()
+4 ACROSS: one ()
+5 ACROSS: tea (ate/eat)
+7 ACROSS: lots (lost)
+1 DOWN: so ()
+2 DOWN: onto ()
+3 DOWN: meet ()
+6 DOWN: as ()
+
+If you like part of the answer but not the rest, try taking the answer
+and changing parts to ? before running again.
